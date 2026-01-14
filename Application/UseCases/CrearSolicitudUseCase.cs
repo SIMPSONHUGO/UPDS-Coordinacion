@@ -1,25 +1,39 @@
+using Application.DTOs;
+using AutoMapper;
 using Domain.Entities;
 using Domain.Interfaces;
+using System;
+using System.Threading.Tasks;
 
 namespace Application.UseCases;
 
 public class CrearSolicitudUseCase
 {
-    private readonly ISolicitudRepository _repo;
+    private readonly ISolicitudRepository _repository;
+    private readonly IMapper _mapper;
 
-    public CrearSolicitudUseCase(ISolicitudRepository repo)
+    public CrearSolicitudUseCase(ISolicitudRepository repository, IMapper mapper)
     {
-        _repo = repo;
+        _repository = repository;
+        _mapper = mapper;
     }
 
-    public async Task Ejecutar(Solicitud solicitud)
+    // 🚨 AQUÍ ESTÁ EL ARREGLO:
+    // Agregamos 'string rutaArchivo' para que coincida con el Controlador
+    public async Task Ejecutar(SolicitudDTO dto, string rutaArchivo)
     {
-        // Regla de Negocio: Validar que tenga motivo
-        if (string.IsNullOrWhiteSpace(solicitud.Motivo))
-        {
-            throw new Exception("El motivo es obligatorio para la licencia.");
-        }
+        // 1. Convertimos los datos del formulario
+        var solicitud = _mapper.Map<Solicitud>(dto);
 
-        await _repo.Crear(solicitud);
+        // 2. Guardamos la ruta de la foto que nos pasó el Controlador
+        solicitud.RutaRespaldo = rutaArchivo;
+        
+        // 3. Llenamos los datos automáticos
+        solicitud.Estado = "Pendiente";
+        solicitud.FechaSolicitud = DateTime.Now;
+        solicitud.ObservacionJefe = "Sin observaciones";
+
+        // 4. Guardamos en la Base de Datos
+        await _repository.Crear(solicitud);
     }
 }

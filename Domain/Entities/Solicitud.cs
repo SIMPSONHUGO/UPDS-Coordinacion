@@ -1,29 +1,23 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Domain.Entities;
 
 public class Solicitud
 {
-    public Guid Id { get; set; }
+    [Key]
+    public int Id { get; set; } // 🚨 CAMBIO IMPORTANTE: De Guid a int
 
-    // Datos del Estudiante
-    public string NombreCompleto { get; set; } = string.Empty;
-    public string Carrera { get; set; } = string.Empty;
-    public string Correo { get; set; } = string.Empty;
-
-    // Datos de la Solicitud
-    public string TipoSolicitud { get; set; } = string.Empty; 
-    public string Motivo { get; set; } = string.Empty; 
+    public int EstudianteId { get; set; } // 🚨 Asegúrate que este también sea int
     
-    // Ruta del archivo adjunto
-    public string RutaRespaldo { get; set; } = string.Empty; 
+    [ForeignKey("EstudianteId")]
+    public Usuario Estudiante { get; set; }
 
-    // Estado inicial
-    public string Estado { get; set; } = "Pendiente"; 
-    
-    public DateTime FechaSolicitud { get; set; } = DateTime.Now;
+    public string Motivo { get; set; } = string.Empty;
+    public DateTime FechaSolicitud { get; set; }
+    public string Estado { get; set; } = "Pendiente";
+    public string TipoSolicitud { get; set; } = "Licencia";
+    public string? RutaRespaldo { get; set; }
+    public string? ObservacionJefe { get; set; }
 }

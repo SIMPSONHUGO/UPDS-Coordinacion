@@ -2,6 +2,9 @@ using Domain.Entities;
 using Domain.Interfaces;
 using Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Infrastructure.Repositories;
 
@@ -14,14 +17,57 @@ public class SolicitudRepository : ISolicitudRepository
         _context = context;
     }
 
+    // --- MÉTODOS DE SOLICITUD ---
+
     public async Task Crear(Solicitud solicitud)
     {
-        await _context.Solicitudes.AddAsync(solicitud);
+        _context.Solicitudes.Add(solicitud);
         await _context.SaveChangesAsync();
     }
 
-    public async Task<IEnumerable<Solicitud>> ObtenerTodas()
+    public async Task Actualizar(Solicitud solicitud)
     {
-        return await _context.Solicitudes.ToListAsync();
+        _context.Solicitudes.Update(solicitud);
+        await _context.SaveChangesAsync();
+    }
+
+    // Corregimos la nulabilidad (Task<Solicitud?>)
+    public async Task<Solicitud?> ObtenerPorId(int id)
+    {
+        return await _context.Solicitudes
+            .Include(s => s.Estudiante)
+            .Include(s => s.Estudiante.Carrera) // Incluimos carrera para el coordinador
+            .FirstOrDefaultAsync(s => s.Id == id);
+    }
+
+    public async Task<List<Solicitud>> ObtenerTodas()
+    {
+        return await _context.Solicitudes
+            .Include(s => s.Estudiante)
+            .Include(s => s.Estudiante.Carrera)
+            .OrderByDescending(s => s.FechaSolicitud)
+            .ToListAsync();
+    }
+
+    public async Task<List<Solicitud>> ObtenerPorEstudiante(int estudianteId)
+    {
+        return await _context.Solicitudes
+            .Where(s => s.EstudianteId == estudianteId)
+            .OrderByDescending(s => s.FechaSolicitud)
+            .ToListAsync();
+    }
+
+    // --- MÉTODOS DE USUARIO (QUE FALTABAN) ---
+
+    public async Task<Usuario?> ObtenerUsuarioPorEmail(string email)
+    {
+        return await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.Email == email);
+    }
+
+    public async Task<Usuario?> ObtenerUsuarioPorId(int id)
+    {
+        return await _context.Usuarios
+            .FindAsync(id);
     }
 }
