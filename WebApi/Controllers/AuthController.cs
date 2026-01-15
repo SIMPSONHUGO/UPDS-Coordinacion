@@ -20,8 +20,6 @@ public class AuthController : ControllerBase
         _loginUseCase = loginUseCase;
         _context = context;
     }
-
-    // 1. LOGIN
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDTO dto)
     {
@@ -36,27 +34,24 @@ public class AuthController : ControllerBase
         }
     }
 
-    // 2. REGISTRO (Actualizado con Carrera)
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegistroEstudianteDTO request)
     {
         try 
         {
-            // Validamos si el correo ya existe
             bool existe = await _context.Usuarios.AnyAsync(u => u.Email == request.Email);
             if (existe)
             {
                 return BadRequest("El correo electrónico ya está registrado.");
             }
 
-            // Creamos el nuevo usuario con la Carrera
             var nuevoUsuario = new Usuario
             {
                 Nombre = request.NombreCompleto,
                 Email = request.Email,
                 Password = request.Password, 
                 Rol = "Estudiante",
-                Carrera = request.Carrera, // 👈 AQUÍ GUARDAMOS LA CARRERA
+                Carrera = request.Carrera,
                 Area = "Estudiante"
             };
 

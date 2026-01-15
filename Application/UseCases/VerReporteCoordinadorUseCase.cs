@@ -19,7 +19,6 @@ public class VerReporteCoordinadorUseCase
 
     public async Task<List<SolicitudCoordinadorDTO>> Ejecutar()
     {
-        // ✅ CORRECCIÓN: Usamos el nombre correcto 'ObtenerTodas'
         var listaEntidades = await _repository.ObtenerTodas();
         
         return _mapper.Map<List<SolicitudCoordinadorDTO>>(listaEntidades);

@@ -16,7 +16,7 @@ public class RevisarSolicitudUseCase
 
     public async Task Ejecutar(RevisarSolicitudDTO dto)
     {
-        // Buscamos la solicitud por su ID (número entero)
+
         var solicitud = await _repository.ObtenerPorId(dto.SolicitudId);
 
         if (solicitud == null)
@@ -24,11 +24,10 @@ public class RevisarSolicitudUseCase
             throw new Exception("Solicitud no encontrada");
         }
 
-        // Actualizamos los datos
-        solicitud.Estado = dto.Estado; // "Aprobada" o "Rechazada"
+
+        solicitud.Estado = dto.Estado;
         solicitud.ObservacionJefe = dto.Observacion;
 
-        // Guardamos cambios
         await _repository.Actualizar(solicitud);
     }
 }

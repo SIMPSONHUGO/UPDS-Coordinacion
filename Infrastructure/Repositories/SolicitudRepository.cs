@@ -17,8 +17,6 @@ public class SolicitudRepository : ISolicitudRepository
         _context = context;
     }
 
-    // --- MÉTODOS DE SOLICITUD ---
-
     public async Task Crear(Solicitud solicitud)
     {
         _context.Solicitudes.Add(solicitud);
@@ -30,13 +28,11 @@ public class SolicitudRepository : ISolicitudRepository
         _context.Solicitudes.Update(solicitud);
         await _context.SaveChangesAsync();
     }
-
-    // Corregimos la nulabilidad (Task<Solicitud?>)
     public async Task<Solicitud?> ObtenerPorId(int id)
     {
         return await _context.Solicitudes
             .Include(s => s.Estudiante)
-            .Include(s => s.Estudiante.Carrera) // Incluimos carrera para el coordinador
+            .Include(s => s.Estudiante.Carrera) 
             .FirstOrDefaultAsync(s => s.Id == id);
     }
 
@@ -56,8 +52,6 @@ public class SolicitudRepository : ISolicitudRepository
             .OrderByDescending(s => s.FechaSolicitud)
             .ToListAsync();
     }
-
-    // --- MÉTODOS DE USUARIO (QUE FALTABAN) ---
 
     public async Task<Usuario?> ObtenerUsuarioPorEmail(string email)
     {

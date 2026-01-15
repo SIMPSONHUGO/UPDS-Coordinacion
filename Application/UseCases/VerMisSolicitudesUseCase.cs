@@ -15,13 +15,10 @@ public class VerMisSolicitudesUseCase
         _repository = repository;
     }
 
-    // Recibe int y devuelve una lista de DTOs
     public async Task<List<SolicitudEstudianteDTO>> Ejecutar(int estudianteId)
     {
-        // 1. Obtenemos las solicitudes (Ahora el ID ya es int, no dará error)
         var listaEntidades = await _repository.ObtenerPorEstudiante(estudianteId);
 
-        // 2. Convertimos a DTO
         var listaDTOs = listaEntidades.Select(s => new SolicitudEstudianteDTO
         {
             Id = s.Id,

@@ -6,7 +6,7 @@ public class SolicitudDTO
 {
     public int Id { get; set; }
     
-    // --- ESTOS SON LOS CAMPOS QUE FALTABAN Y CAUSABAN EL ERROR ---
+
     public string NombreEstudiante { get; set; }
     public string Carrera { get; set; } 
     public string Materia { get; set; }

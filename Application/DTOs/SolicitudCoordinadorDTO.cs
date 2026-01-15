@@ -6,12 +6,11 @@ public class SolicitudCoordinadorDTO
 {
     public int Id { get; set; }
     
-    // Inicializamos todo con string.Empty para evitar warnings
+
     public string NombreEstudiante { get; set; } = string.Empty;
     public string Carrera { get; set; } = string.Empty;
     public string Motivo { get; set; } = string.Empty;
     
-    // Cambiamos a string para formatear fecha (o déjalo DateTime si prefieres)
     public string FechaSolicitud { get; set; } = string.Empty; 
     
     public string Estado { get; set; } = string.Empty;

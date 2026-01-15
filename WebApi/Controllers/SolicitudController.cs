@@ -19,14 +19,12 @@ public class SolicitudController : ControllerBase
         _context = context;
     }
 
-    // 1. CREAR SOLICITUD (Estudiante)
     [HttpPost]
     [Authorize(Roles = "Estudiante")]
     public async Task<IActionResult> Crear([FromForm] SolicitudCreacionDTO dto)
     {
         try
         {
-            // Extraer ID de forma robusta soportando esquemas XML y estándar
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? 
                               User.Claims.FirstOrDefault(c => c.Type == "Id" || c.Type == "nameid")?.Value;
 
@@ -36,7 +34,6 @@ public class SolicitudController : ControllerBase
             var userId = int.Parse(userIdClaim);
             string nombreArchivoFinal = "Sin respaldo";
 
-            // Procesamiento de archivos
             if (dto.Archivo != null && dto.Archivo.Length > 0)
             {
                 var extension = Path.GetExtension(dto.Archivo.FileName);
@@ -79,7 +76,6 @@ public class SolicitudController : ControllerBase
         }
     }
 
-    // 2. VER MIS SOLICITUDES (Estudiante)
     [HttpGet("mis-solicitudes")]
     [Authorize(Roles = "Estudiante")]
     public async Task<ActionResult<IEnumerable<SolicitudVisualDTO>>> ObtenerMisSolicitudes()
@@ -110,7 +106,6 @@ public class SolicitudController : ControllerBase
             .ToListAsync();
     }
 
-    // 3. VER PENDIENTES (Jefes de Carrera)
     [HttpGet("pendientes")]
     [Authorize(Roles = "Jefe")]
     public async Task<ActionResult<IEnumerable<SolicitudVisualDTO>>> ObtenerPendientes()
@@ -126,7 +121,6 @@ public class SolicitudController : ControllerBase
 
         var query = _context.Solicitudes.Include(s => s.Estudiante).Where(s => s.Estado == "Pendiente");
 
-        // Filtrado por Carrera usando nombres parciales para mayor estabilidad
         if (jefe.Nombre.Contains("Vanessa")) 
             query = query.Where(s => s.Estudiante.Carrera.Contains("Psicología") || s.Estudiante.Carrera.Contains("Social"));
         else if (jefe.Nombre.Contains("Javier"))
@@ -153,7 +147,6 @@ public class SolicitudController : ControllerBase
         }).ToListAsync();
     }
 
-    // 4. REVISAR (Aprobar o Rechazar)
     [HttpPost("revisar/{id}")]
     [Authorize(Roles = "Jefe")]
     public async Task<IActionResult> Revisar(int id, [FromBody] RevisarSolicitudAccionDTO dto)
@@ -168,7 +161,6 @@ public class SolicitudController : ControllerBase
         return Ok(new { message = $"Solicitud {dto.Estado} correctamente" });
     }
 
-    // 5. OBTENER PROCESADAS (Para Historial del Jefe)
     [HttpGet("procesadas")]
     [Authorize(Roles = "Jefe")]
     public async Task<ActionResult<IEnumerable<SolicitudVisualDTO>>> ObtenerProcesadas()
@@ -181,7 +173,6 @@ public class SolicitudController : ControllerBase
     }
 }
 
-// DTOs auxiliares sincronizados con el Frontend
 public class RevisarSolicitudAccionDTO { public string Estado { get; set; } = string.Empty; public string Observacion { get; set; } = string.Empty; }
 
 public class SolicitudVisualDTO
