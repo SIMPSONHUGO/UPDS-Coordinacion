@@ -21,7 +21,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowWebClient", policy =>
     {
-        policy.AllowAnyOrigin()  // En producción se recomienda poner la URL específica
+        policy.AllowAnyOrigin()
               .AllowAnyMethod()
               .AllowAnyHeader();
     });
@@ -88,7 +88,25 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// --- AQUÍ EMPIEZA LA TUBERÍA (PIPELINE) ---
+// --- INICIO DE BLOQUE PARA CREAR BASE DE DATOS Y JEFES ---
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try 
+    {
+        var context = services.GetRequiredService<Infrastructure.Data.AppDbContext>();
+        // ⚠️ ESTO BORRA Y CREA LA BASE DE DATOS DE NUEVO (Para actualizar cambios y crear a Vanessa, Eiver, etc.)
+        context.Database.EnsureDeleted();
+        context.Database.EnsureCreated();
+        // Llenamos los datos
+        Infrastructure.Data.DbInitializer.Initialize(context);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Ocurrió un error creando la DB: " + ex.Message);
+    }
+}
+// --- FIN DE BLOQUE ---
 
 if (app.Environment.IsDevelopment())
 {
@@ -98,18 +116,17 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// 🚨 CAMBIO IMPORTANTE: CORS va primero
+// CORS SIEMPRE ANTES DE AUTH
 app.UseCors("AllowWebClient"); 
 
-// 🚨 ESTO ES LO QUE PERMITE VER LAS FOTOS
-app.UseStaticFiles();
+app.UseStaticFiles(); // Para las fotos
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-// TRUCO EXTRA: Asegurar que la carpeta de respaldos exista al arrancar
+// Asegurar carpeta de respaldos
 var carpetaRespaldos = Path.Combine(app.Environment.WebRootPath ?? "wwwroot", "respaldos");
 if (!Directory.Exists(carpetaRespaldos))
 {

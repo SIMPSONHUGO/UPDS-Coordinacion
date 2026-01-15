@@ -1,124 +1,200 @@
-using Microsoft.AspNetCore.Mvc;
-using Application.UseCases;
 using Application.DTOs;
+using Domain.Entities;
+using Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace WebApi.Controllers;
 
-[ApiController]
 [Route("api/[controller]")]
+[ApiController]
 public class SolicitudController : ControllerBase
 {
-    private readonly CrearSolicitudUseCase _crearUseCase;
-    private readonly VerMisSolicitudesUseCase _verMisSolicitudesUseCase;
-    private readonly RevisarSolicitudUseCase _revisarUseCase;
-    private readonly VerReporteCoordinadorUseCase _verReporteUseCase;
-    private readonly LoginUseCase _loginUseCase;
-
-    public SolicitudController(
-        CrearSolicitudUseCase crearUseCase,
-        VerMisSolicitudesUseCase verMisSolicitudesUseCase,
-        RevisarSolicitudUseCase revisarUseCase,
-        VerReporteCoordinadorUseCase verReporteUseCase,
-        LoginUseCase loginUseCase)
+    private readonly AppDbContext _context;
+    
+    public SolicitudController(AppDbContext context)
     {
-        _crearUseCase = crearUseCase;
-        _verMisSolicitudesUseCase = verMisSolicitudesUseCase;
-        _revisarUseCase = revisarUseCase;
-        _verReporteUseCase = verReporteUseCase;
-        _loginUseCase = loginUseCase;
+        _context = context;
     }
 
-    [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginDTO dto)
+    // 1. CREAR SOLICITUD (Estudiante)
+    [HttpPost]
+    [Authorize(Roles = "Estudiante")]
+    public async Task<IActionResult> Crear([FromForm] SolicitudCreacionDTO dto)
     {
         try
         {
-            var token = await _loginUseCase.Ejecutar(dto);
-            return Ok(new { token });
-        }
-        catch (Exception ex)
-        {
-            return Unauthorized(ex.Message);
-        }
-    }
+            // Extraer ID de forma robusta soportando esquemas XML y estándar
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? 
+                              User.Claims.FirstOrDefault(c => c.Type == "Id" || c.Type == "nameid")?.Value;
 
-    // 🚨 AQUÍ ESTÁ LA CORRECCIÓN IMPORTANTE 🚨
-    [HttpPost("crear")]
-    [Authorize] 
-    // Fíjate aquí: Recibimos 'dto' Y APARTE recibimos 'archivo'
-    public async Task<IActionResult> Crear([FromForm] SolicitudDTO dto, IFormFile? archivo) 
-    {
-        try
-        {
-            // Manejo del archivo (foto)
-            string rutaArchivo = "Sin respaldo";
-            
-            // Verificamos la variable 'archivo', no 'dto.Archivo'
-            if (archivo != null && archivo.Length > 0)
+            if (string.IsNullOrEmpty(userIdClaim)) 
+                return Unauthorized(new { error = "Sesión inválida. No se encontró el ID del usuario." });
+
+            var userId = int.Parse(userIdClaim);
+            string nombreArchivoFinal = "Sin respaldo";
+
+            // Procesamiento de archivos
+            if (dto.Archivo != null && dto.Archivo.Length > 0)
             {
-                // Crear carpeta si no existe
-                var carpeta = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "respaldos");
-                if (!Directory.Exists(carpeta)) Directory.CreateDirectory(carpeta);
-
-                // Nombre único para el archivo
-                var nombreArchivo = Guid.NewGuid().ToString() + Path.GetExtension(archivo.FileName);
-                var rutaCompleta = Path.Combine(carpeta, nombreArchivo);
-
-                // Guardar en disco
+                var extension = Path.GetExtension(dto.Archivo.FileName);
+                var nombreUnico = $"{Guid.NewGuid()}{extension}";
+                var rutaCarpeta = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "respaldos");
+                
+                if (!Directory.Exists(rutaCarpeta)) Directory.CreateDirectory(rutaCarpeta);
+                
+                var rutaCompleta = Path.Combine(rutaCarpeta, nombreUnico);
                 using (var stream = new FileStream(rutaCompleta, FileMode.Create))
                 {
-                    await archivo.CopyToAsync(stream);
+                    await dto.Archivo.CopyToAsync(stream);
                 }
-
-                rutaArchivo = "/respaldos/" + nombreArchivo;
+                nombreArchivoFinal = nombreUnico;
             }
 
-            // Enviamos al caso de uso el DTO limpio y la ruta aparte
-            await _crearUseCase.Ejecutar(dto, rutaArchivo);
-            return Ok(new { mensaje = "Solicitud creada exitosamente" });
+            var nuevaSolicitud = new Solicitud
+            {
+                EstudianteId = userId, 
+                Motivo = dto.Motivo,
+                Materia = dto.Materia,
+                Docente = dto.Docente,
+                FechaInicio = dto.FechaInicio,
+                FechaFin = dto.FechaFin,
+                RutaRespaldo = nombreArchivoFinal,
+                FechaSolicitud = DateTime.Now,
+                Estado = "Pendiente",
+                ObservacionJefe = "Sin observaciones"
+            };
+
+            _context.Solicitudes.Add(nuevaSolicitud);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Solicitud enviada correctamente" });
         }
         catch (Exception ex)
         {
-            return BadRequest(ex.Message);
+            var msg = ex.InnerException?.Message ?? ex.Message;
+            return BadRequest(new { error = $"Error al guardar: {msg}" });
         }
     }
 
-    [HttpGet("mis-solicitudes/{estudianteId}")]
-    [Authorize]
-    public async Task<IActionResult> MisSolicitudes(int estudianteId)
+    // 2. VER MIS SOLICITUDES (Estudiante)
+    [HttpGet("mis-solicitudes")]
+    [Authorize(Roles = "Estudiante")]
+    public async Task<ActionResult<IEnumerable<SolicitudVisualDTO>>> ObtenerMisSolicitudes()
     {
-        var lista = await _verMisSolicitudesUseCase.Ejecutar(estudianteId);
-        return Ok(lista);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? 
+                          User.Claims.FirstOrDefault(c => c.Type == "Id" || c.Type == "nameid")?.Value;
+
+        if (userIdClaim == null) return Unauthorized(new { error = "Usuario no identificado." });
+        int userId = int.Parse(userIdClaim);
+
+        return await _context.Solicitudes
+            .Where(s => s.EstudianteId == userId)
+            .OrderByDescending(s => s.FechaSolicitud)
+            .Select(s => new SolicitudVisualDTO
+            {
+                Id = s.Id,
+                NombreEstudiante = s.Estudiante.Nombre,
+                Carrera = s.Estudiante.Carrera ?? "Sin Carrera",
+                Motivo = s.Motivo,
+                Materia = s.Materia,
+                Estado = s.Estado,
+                ObservacionJefe = s.ObservacionJefe,
+                RutaRespaldo = s.RutaRespaldo,
+                FechaSolicitud = s.FechaSolicitud,
+                FechaInicio = s.FechaInicio,
+                FechaFin = s.FechaFin
+            })
+            .ToListAsync();
     }
 
-    [HttpGet("pendientes")] 
-    [Authorize(Roles = "Jefe,Decano")] 
-    public async Task<IActionResult> ObtenerPendientes()
+    // 3. VER PENDIENTES (Jefes de Carrera)
+    [HttpGet("pendientes")]
+    [Authorize(Roles = "Jefe")]
+    public async Task<ActionResult<IEnumerable<SolicitudVisualDTO>>> ObtenerPendientes()
     {
-        var lista = await _verReporteUseCase.Ejecutar();
-        return Ok(lista);
-    }
-    
-    [HttpGet("coordinador")]
-    public async Task<IActionResult> ObtenerCoordinador()
-    {
-        var lista = await _verReporteUseCase.Ejecutar();
-        return Ok(lista);
-    }
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? 
+                          User.Claims.FirstOrDefault(c => c.Type == "Id" || c.Type == "nameid")?.Value;
 
-    [HttpPost("revisar")]
-    [Authorize]
-    public async Task<IActionResult> Revisar([FromBody] RevisarSolicitudDTO dto)
-    {
-        try
+        if (userIdClaim == null) return Unauthorized();
+        int jefeId = int.Parse(userIdClaim);
+
+        var jefe = await _context.Usuarios.FindAsync(jefeId);
+        if (jefe == null) return Unauthorized();
+
+        var query = _context.Solicitudes.Include(s => s.Estudiante).Where(s => s.Estado == "Pendiente");
+
+        // Filtrado por Carrera usando nombres parciales para mayor estabilidad
+        if (jefe.Nombre.Contains("Vanessa")) 
+            query = query.Where(s => s.Estudiante.Carrera.Contains("Psicología") || s.Estudiante.Carrera.Contains("Social"));
+        else if (jefe.Nombre.Contains("Javier"))
+            query = query.Where(s => s.Estudiante.Carrera.Contains("Contaduría") || s.Estudiante.Carrera.Contains("Administración") || s.Estudiante.Carrera.Contains("Marketing"));
+        else if (jefe.Nombre.Contains("Ana"))
+            query = query.Where(s => s.Estudiante.Carrera.Contains("Derecho"));
+        else if (jefe.Nombre.Contains("Eiver"))
+            query = query.Where(s => s.Estudiante.Carrera.Contains("Sistemas") || s.Estudiante.Carrera.Contains("Redes") || s.Estudiante.Carrera.Contains("Telecomunicaciones"));
+        else if (jefe.Nombre.Contains("Martin"))
+            query = query.Where(s => s.Estudiante.Carrera.Contains("Civil") || s.Estudiante.Carrera.Contains("Industrial"));
+
+        return await query.Select(s => new SolicitudVisualDTO
         {
-            await _revisarUseCase.Ejecutar(dto);
-            return Ok(new { mensaje = "Solicitud revisada correctamente" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
+            Id = s.Id,
+            NombreEstudiante = s.Estudiante.Nombre,
+            Carrera = s.Estudiante.Carrera ?? "Sin Carrera",
+            Motivo = s.Motivo,
+            Materia = s.Materia,
+            FechaInicio = s.FechaInicio,
+            FechaFin = s.FechaFin,
+            FechaSolicitud = s.FechaSolicitud,
+            Estado = s.Estado,
+            RutaRespaldo = s.RutaRespaldo
+        }).ToListAsync();
     }
+
+    // 4. REVISAR (Aprobar o Rechazar)
+    [HttpPost("revisar/{id}")]
+    [Authorize(Roles = "Jefe")]
+    public async Task<IActionResult> Revisar(int id, [FromBody] RevisarSolicitudAccionDTO dto)
+    {
+        var solicitud = await _context.Solicitudes.FindAsync(id);
+        if (solicitud == null) return NotFound(new { error = "Solicitud no encontrada" });
+        
+        solicitud.Estado = dto.Estado;
+        solicitud.ObservacionJefe = dto.Observacion;
+        await _context.SaveChangesAsync();
+        
+        return Ok(new { message = $"Solicitud {dto.Estado} correctamente" });
+    }
+
+    // 5. OBTENER PROCESADAS (Para Historial del Jefe)
+    [HttpGet("procesadas")]
+    [Authorize(Roles = "Jefe")]
+    public async Task<ActionResult<IEnumerable<SolicitudVisualDTO>>> ObtenerProcesadas()
+    {
+        return await _context.Solicitudes
+            .Where(s => s.Estado != "Pendiente")
+            .OrderByDescending(s => s.FechaSolicitud)
+            .Select(s => new SolicitudVisualDTO { Id = s.Id, Estado = s.Estado })
+            .ToListAsync();
+    }
+}
+
+// DTOs auxiliares sincronizados con el Frontend
+public class RevisarSolicitudAccionDTO { public string Estado { get; set; } = string.Empty; public string Observacion { get; set; } = string.Empty; }
+
+public class SolicitudVisualDTO
+{
+    public int Id { get; set; }
+    public string NombreEstudiante { get; set; } = string.Empty;
+    public string Carrera { get; set; } = string.Empty;
+    public DateTime FechaSolicitud { get; set; }
+    public string Motivo { get; set; } = string.Empty;
+    public string Materia { get; set; } = string.Empty;
+    public DateTime FechaInicio { get; set; }
+    public DateTime FechaFin { get; set; }
+    public string Estado { get; set; } = string.Empty;
+    public string RutaRespaldo { get; set; } = string.Empty;
+    public string? ObservacionJefe { get; set; }
 }

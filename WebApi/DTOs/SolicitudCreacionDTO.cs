@@ -1,13 +1,20 @@
-using Microsoft.AspNetCore.Http; // Necesario para IFormFile
+using System;
 
-namespace WebApi.DTOs;
+namespace Application.DTOs; 
 
-public class SolicitudCreacionDTO
+public class SolicitudDTO
 {
-    public int EstudianteId { get; set; }
-    public string TipoSolicitud { get; set; } = string.Empty;
-    public string Motivo { get; set; } = string.Empty;
+    public int Id { get; set; }
+    public string NombreEstudiante { get; set; }
+    public string Carrera { get; set; } 
+    public DateTime FechaSolicitud { get; set; }
     
-    // ESTA ES LA CLAVE: El archivo real que viene del navegador
-    public IFormFile? Archivo { get; set; } 
+    public string Motivo { get; set; }
+    public string Materia { get; set; } 
+    public DateTime FechaInicio { get; set; }
+    public DateTime FechaFin { get; set; }
+
+    public string Estado { get; set; }
+    public string RutaRespaldo { get; set; }
+    public string? ObservacionJefe { get; set; }
 }

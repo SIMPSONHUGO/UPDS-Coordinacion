@@ -1,6 +1,10 @@
 using Application.DTOs;
 using Application.UseCases;
+using Domain.Entities;
+using Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using WebApi.DTOs; 
 
 namespace WebApi.Controllers;
 
@@ -9,25 +13,61 @@ namespace WebApi.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly LoginUseCase _loginUseCase;
+    private readonly AppDbContext _context;
 
-    public AuthController(LoginUseCase loginUseCase)
+    public AuthController(LoginUseCase loginUseCase, AppDbContext context)
     {
         _loginUseCase = loginUseCase;
+        _context = context;
     }
 
+    // 1. LOGIN
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDTO dto)
     {
         try
         {
-            // Llamamos al caso de uso y recibimos el token
             string token = await _loginUseCase.Ejecutar(dto);
-            // Lo devolvemos al usuario
             return Ok(new { token = token });
         }
         catch (Exception ex)
         {
             return Unauthorized(new { error = ex.Message });
+        }
+    }
+
+    // 2. REGISTRO (Actualizado con Carrera)
+    [HttpPost("register")]
+    public async Task<IActionResult> Register([FromBody] RegistroEstudianteDTO request)
+    {
+        try 
+        {
+            // Validamos si el correo ya existe
+            bool existe = await _context.Usuarios.AnyAsync(u => u.Email == request.Email);
+            if (existe)
+            {
+                return BadRequest("El correo electrónico ya está registrado.");
+            }
+
+            // Creamos el nuevo usuario con la Carrera
+            var nuevoUsuario = new Usuario
+            {
+                Nombre = request.NombreCompleto,
+                Email = request.Email,
+                Password = request.Password, 
+                Rol = "Estudiante",
+                Carrera = request.Carrera, // 👈 AQUÍ GUARDAMOS LA CARRERA
+                Area = "Estudiante"
+            };
+
+            _context.Usuarios.Add(nuevoUsuario);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Registro exitoso. Ahora puedes iniciar sesión." });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = "No se pudo registrar el usuario: " + ex.Message });
         }
     }
 }
